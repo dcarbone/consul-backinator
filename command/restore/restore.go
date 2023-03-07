@@ -82,20 +82,14 @@ func (c *Command) restoreACLs() (int, error) {
 		return 0, err
 	}
 
-	// loop through acl roles
-	for _, role := range aclData.Roles {
-		// write role
-		if _, _, err = c.consulClient.ACL().RoleCreate(role, nil); err != nil {
-			c.Log.Printf("[Warning] Failed to restore ACL role %s: %v",
-				role.Name, err)
-		} else {
-			// success - increment count
-			roleCount++
-		}
-	}
-
 	// loop through acl policies
 	for _, policy := range aclData.Policies {
+		// Remove Old ID into restore
+		if policy.ID != "" {
+			policy.ID = ""
+		} else {
+			c.Log.Printf("Policy ID is not defined or empty")
+		}
 		if _, _, err := c.consulClient.ACL().PolicyCreate(policy, nil); err != nil {
 			c.Log.Printf("[Warning] Failed to restore ACL policy %s: %v",
 				policy.Name, err)
@@ -105,8 +99,40 @@ func (c *Command) restoreACLs() (int, error) {
 		}
 	}
 
+	// loop through acl roles
+	for _, role := range aclData.Roles {
+		// write role
+		// Remove Old ID into restore
+		if role.ID != "" {
+			role.ID = ""
+			if role.Policies[0].ID != "" {
+				role.Policies[0].ID = ""
+			} else {
+				c.Log.Printf("Policy ID is not defined or empty")
+			}
+		} else {
+			c.Log.Printf("Role ID is not defined or empty")
+		}
+		if _, _, err = c.consulClient.ACL().RoleCreate(role, nil); err != nil {
+			c.Log.Printf("[Warning] Failed to restore ACL role %s: %v",
+				role.Name, err)
+		} else {
+			// success - increment count
+			roleCount++
+		}
+	}
+
 	// loop through acl tokens
 	for _, token := range aclData.Tokens {
+		//Remove Old Policy ID into restore
+		if token.Policies != nil {
+			token.Policies[0].ID = ""
+			//Remove Old Role ID into restore
+		} else if token.Roles != nil {
+			token.Roles[0].ID = ""
+		} else {
+			c.Log.Printf("Role/Policy ID is not defined or empty")
+		}
 		// write token
 		if _, _, err = c.consulClient.ACL().TokenCreate(token, nil); err != nil {
 			c.Log.Printf("[Warning] Failed to restore ACL token with description %q: %v",
